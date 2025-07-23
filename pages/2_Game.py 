@@ -1,0 +1,53 @@
+# pages/2_Game.py
+
+import streamlit as st
+import os
+import random
+import time
+from utils import decode, display_card, CARD_DIR, load_random_cards
+
+# ⏱ 세션 상태 초기화
+if "game_started" not in st.session_state:
+    st.session_state.game_started = False
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
+if "cards" not in st.session_state:
+    st.session_state.cards = []
+
+# ⏱ 시간 표시 함수
+def format_elapsed_time(start_time):
+    elapsed = int(time.time() - start_time)
+    hours = elapsed // 3600
+    minutes = (elapsed % 3600) // 60
+    seconds = elapsed % 60
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+# 🧩 페이지 UI
+st.set_page_config(page_title="SET 게임", layout="wide")
+st.title("🎮 SET 보드게임")
+
+# ⏱ 오른쪽 상단에 시간 표시
+if st.session_state.game_started and st.session_state.start_time:
+    st.markdown(
+        f"<div style='position: absolute; top: 20px; right: 30px; font-size: 18px;'>"
+        f"⏱️ {format_elapsed_time(st.session_state.start_time)}"
+        f"</div>", unsafe_allow_html=True
+    )
+
+# ▶ Start 버튼 이미지
+st.markdown("### ▶ 게임을 시작하려면 아래 버튼을 누르세요.")
+if st.button("게임 시작하기", key="start"):
+    st.session_state.cards = load_random_cards()
+    st.session_state.start_time = time.time()
+    st.session_state.game_started = True
+
+# 카드 출력
+if st.session_state.game_started:
+    st.markdown("#### 🎴 현재 보드:")
+    cols = st.columns(4)
+    for i, card in enumerate(st.session_state.cards):
+        with cols[i % 4]:
+            display_card(card)
+else:
+    st.image("icons/start-button.png", width=200)
+
