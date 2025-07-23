@@ -4,6 +4,7 @@ import random
 import time
 from datetime import timedelta
 from itertools import combinations
+from utils import save_stats_summary
 
 # 카드 이미지 폴더 경로
 CARD_DIR = "set_cards"
@@ -47,8 +48,8 @@ if "game_started" not in st.session_state:
     st.session_state.cards = []
     st.session_state.remaining = ALL_CARDS.copy()
     st.session_state.selected = []
-    st.session_state.set_success = []  # (번호, 시간, 특이사항)
-    st.session_state.set_fail = []     # (번호, 시간)
+    st.session_state.set_success = []
+    st.session_state.set_fail = []
     st.session_state.start_time = 0
     st.session_state.hint_mode = False
 
@@ -142,25 +143,15 @@ if not st.session_state.remaining:
             break
         board = board[:-3]
     else:
-        st.markdown("## 🏁 게임 종료!")
+        save_stats_summary()
+        st.markdown("## 🏁 게임 종료! 결과가 game_records.csv에 저장되었습니다.")
         st.stop()
 
 # 게임 종료 버튼
 if st.button("🛑 게임 종료"):
     st.session_state.game_started = False
-
-    # 결과 저장
-    with open("records.py", "w", encoding="utf-8") as f:
-        f.write("set_success_records = [\n")
-        for s in st.session_state.set_success:
-            f.write(f"    {s},\n")
-        f.write("]\n\n")
-        f.write("set_fail_records = [\n")
-        for f_ in st.session_state.set_fail:
-            f.write(f"    {f_},\n")
-        f.write("]\n")
-
-    st.success("✅ 게임이 종료되었고 결과가 Records에 저장되었습니다.")
+    save_stats_summary()
+    st.success("✅ 게임이 종료되었고 결과가 game_records.csv에 저장되었습니다.")
     st.stop()
 
 # 결과 테이블
