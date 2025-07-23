@@ -45,3 +45,13 @@ def check_answer(user_selections, correct, is_set, idx):
     if all(user_selections[i] == correct[i] for i in range(4)):
         msg = f"✅ 맞았어요! 예제 {idx}은 SET{'입니다' if is_set else '이 아닙니다'}."
         st.success(msg)
+
+
+# utils.py
+
+def parse_card_name(filename):
+    return [int(c) for c in filename[:4]]
+
+def is_set(card1, card2, card3):
+    attrs = zip(parse_card_name(card1), parse_card_name(card2), parse_card_name(card3))
+    return all((a + b + c) % 3 == 0 for a, b, c in attrs)
