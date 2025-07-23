@@ -3,20 +3,37 @@ import os
 import random
 import time
 from datetime import timedelta
+from itertools import combinations
 
-# 카드 폴더 경로
+# 카드 이미지 폴더 경로
 CARD_DIR = "set_cards"
 ALL_CARDS = sorted([f for f in os.listdir(CARD_DIR) if f.endswith(".png")])
 
-# 페이지 설정
-st.set_page_config(page_title="SET 보드게임", layout="wide")
+# SET 판별 함수
+def get_card_attributes(filename):
+    return [int(ch) for ch in filename[:4]]
 
-# 타이틀 & 타이머
+def is_set(cards):
+    attrs = [get_card_attributes(c) for c in cards]
+    for i in range(4):
+        values = {attr[i] for attr in attrs}
+        if len(values) == 2:  # 두 개만 다르면 SET 아님
+            return False
+    return True
+
+def any_set_exists(card_list):
+    for a, b, c in combinations(card_list, 3):
+        if is_set([a, b, c]):
+            return True
+    return False
+
+# 페이지 설정
+st.set_page_config(page_title="SET 게임", layout="wide")
 col1, col2 = st.columns([8, 2])
 with col1:
     st.markdown("## 🎮 SET 보드게임")
 with col2:
-    if "start_time" in st.session_state:
+    if st.session_state.get("game_started", False):
         elapsed = int(time.time() - st.session_state.start_time)
         st.markdown(f"**🕒 경과 시간:** {str(timedelta(seconds=elapsed))}")
     else:
@@ -24,102 +41,98 @@ with col2:
 
 st.markdown("---")
 
-# 상태 초기화
+# 세션 상태 초기화
 if "game_started" not in st.session_state:
     st.session_state.game_started = False
     st.session_state.cards = []
-    st.session_state.used_cards = set()
+    st.session_state.remaining = ALL_CARDS.copy()
     st.session_state.selected = []
-    st.session_state.set_successes = []
-    st.session_state.set_failures = []
+    st.session_state.set_success = []
+    st.session_state.set_fail = []
+    st.session_state.start_time = 0
 
-# SET 판별 함수
-def is_set(cards):
-    features = list(zip(*[list(card[:4]) for card in cards]))
-    return all(len(set(f)) in [1, 3] for f in features)
+# 게임 시작
+if not st.session_state.game_started:
+    if st.button("🎲 게임 시작하기"):
+        st.session_state.game_started = True
+        st.session_state.start_time = time.time()
+        st.session_state.remaining = ALL_CARDS.copy()
+        st.session_state.cards = random.sample(st.session_state.remaining, 12)
+        for c in st.session_state.cards:
+            st.session_state.remaining.remove(c)
+        st.rerun()
+    else:
+        st.stop()
 
-# 카드 클릭 핸들러
+# 선택 핸들러
 def toggle_card(idx):
     if idx in st.session_state.selected:
         st.session_state.selected.remove(idx)
     elif len(st.session_state.selected) < 3:
         st.session_state.selected.append(idx)
 
-# 카드 3장 SET인지 판별
-def process_selection():
-    selected = st.session_state.selected
-    cards = [st.session_state.cards[i] for i in selected]
-    now = int(time.time() - st.session_state.start_time)
-
-    if is_set(cards):
-        st.session_state.set_successes.append((len(st.session_state.set_successes)+1, str(timedelta(seconds=now))))
-        st.success("🎉 SET 성공!")
-        # 성공한 카드 제거
-        for i in sorted(selected, reverse=True):
-            del st.session_state.cards[i]
-        # 새 카드 추가
-        remaining_cards = list(set(ALL_CARDS) - set(st.session_state.cards) - st.session_state.used_cards)
-        new_cards = random.sample(remaining_cards, min(3, len(remaining_cards)))
-        st.session_state.cards.extend(new_cards)
-        st.session_state.used_cards.update(new_cards)
-    else:
-        st.session_state.set_failures.append((len(st.session_state.set_failures)+1, str(timedelta(seconds=now))))
-        st.error("❌ SET 실패!")
-
-    st.session_state.selected = []
-
-# 게임 시작 버튼
-if not st.session_state.game_started:
-    if st.button("🎲 게임 시작하기", key="start_btn"):
-        st.session_state.game_started = True
-        st.session_state.start_time = time.time()
-        st.session_state.cards = random.sample(ALL_CARDS, 12)
-        st.session_state.used_cards = set(st.session_state.cards)
-        st.session_state.selected = []
-        st.rerun()
-    else:
-        st.stop()
-
-# 카드 선택 처리
-if len(st.session_state.selected) == 3:
-    process_selection()
-
-# 카드 출력
+# 카드 표시
 cols = st.columns(4)
 for idx, card_file in enumerate(st.session_state.cards):
     col = cols[idx % 4]
+    card_path = os.path.join(CARD_DIR, card_file)
     with col:
-        st.image(os.path.join(CARD_DIR, card_file), width=160)
-        is_selected = idx in st.session_state.selected
-        btn_label = "✅ 선택됨" if is_selected else "⚪"
-        st.button(
-            btn_label,
-            key=f"btn_{idx}",
-            on_click=toggle_card,
-            args=(idx,),
-            help=card_file
-        )
+        st.image(card_path, width=160)
+        ui_cols = st.columns([1, 5])
+        if ui_cols[0].button("●", key=f"btn_{idx}"):
+            toggle_card(idx)
+            st.rerun()
+        if idx in st.session_state.selected:
+            ui_cols[1].markdown("선택됨")
 
-st.markdown("---")
+# SET 판별
+if len(st.session_state.selected) == 3:
+    selected_cards = [st.session_state.cards[i] for i in st.session_state.selected]
+    elapsed = int(time.time() - st.session_state.start_time)
+    if is_set(selected_cards):
+        st.success("🎉 SET 성공!")
+        st.session_state.set_success.append((len(st.session_state.set_success)+1, str(timedelta(seconds=elapsed))))
+        for i in sorted(st.session_state.selected, reverse=True):
+            st.session_state.cards.pop(i)
+        if len(st.session_state.cards) <= 12 and len(st.session_state.remaining) >= 3:
+            new_cards = random.sample(st.session_state.remaining, 3)
+            st.session_state.cards.extend(new_cards)
+            for c in new_cards:
+                st.session_state.remaining.remove(c)
+        st.session_state.selected.clear()
+        st.rerun()
+    else:
+        st.error("❌ SET 실패!")
+        st.session_state.set_fail.append((len(st.session_state.set_fail)+1, str(timedelta(seconds=elapsed))))
+        st.session_state.selected.clear()
+        st.rerun()
 
-# SET 성공 / 실패 기록 테이블
-left, right = st.columns(2)
-with left:
+# SET 없음 → 카드 추가
+if not any_set_exists(st.session_state.cards):
+    if len(st.session_state.cards) == 12 and len(st.session_state.remaining) >= 3:
+        st.warning("⚠️ SET이 만들어지지 않으니 3장을 추가하겠습니다!")
+        new_cards = random.sample(st.session_state.remaining, 3)
+        st.session_state.cards.extend(new_cards)
+        for c in new_cards:
+            st.session_state.remaining.remove(c)
+        st.rerun()
+
+# 종료 조건 검사
+if not st.session_state.remaining:
+    board = st.session_state.cards.copy()
+    while len(board) >= 3:
+        if any_set_exists(board):
+            break
+        board = board[:-3]
+    else:
+        st.markdown("## 🏁 게임 종료!")
+        st.stop()
+
+# 결과 테이블
+col1, col2 = st.columns(2)
+with col1:
     st.markdown("### ✅ SET 성공 기록")
-    if st.session_state.set_successes:
-        st.table({"번호": [s[0] for s in st.session_state.set_successes],
-                  "소요 시간": [s[1] for s in st.session_state.set_successes]})
-    else:
-        st.write("아직 성공한 SET이 없습니다.")
-
-with right:
+    st.table(st.session_state.set_success)
+with col2:
     st.markdown("### ❌ SET 실패 기록")
-    if st.session_state.set_failures:
-        st.table({"번호": [f[0] for f in st.session_state.set_failures],
-                  "소요 시간": [f[1] for f in st.session_state.set_failures]})
-    else:
-        st.write("아직 실패한 SET이 없습니다.")
-
-# 게임 종료
-if len(st.session_state.cards) == 0:
-    st.markdown("### 🎉 모든 카드를 사용했습니다! 게임 종료!")
+    st.table(st.session_state.set_fail)
