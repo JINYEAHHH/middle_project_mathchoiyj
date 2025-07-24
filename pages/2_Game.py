@@ -14,11 +14,9 @@ from utils import save_stats_summary
 CARD_DIR = "set_cards"
 ALL_CARDS = sorted([f for f in os.listdir(CARD_DIR) if f.endswith(".png")])
 
-# 카드 속성 추출
 def get_card_attributes(filename):
     return [int(ch) for ch in filename[:4]]
 
-# SET인지 판별
 def is_set(cards):
     attrs = [get_card_attributes(c) for c in cards]
     for i in range(4):
@@ -27,14 +25,12 @@ def is_set(cards):
             return False
     return True
 
-# 보드에 SET이 존재하는지 확인
 def any_set_exists(card_list):
     for a, b, c in combinations(card_list, 3):
         if is_set([a, b, c]):
             return True
     return False
 
-# 페이지 설정
 st.set_page_config(page_title="SET 게임", layout="wide")
 col1, col2 = st.columns([8, 2])
 with col1:
@@ -59,7 +55,7 @@ if "game_started" not in st.session_state:
     st.session_state.start_time = 0
     st.session_state.hint_mode = False
 
-# 게임 시작 버튼
+# 게임 시작
 if not st.session_state.game_started:
     if st.button("🎲 게임 시작하기"):
         st.session_state.game_started = True
@@ -72,7 +68,7 @@ if not st.session_state.game_started:
     else:
         st.stop()
 
-# 카드 선택 핸들러
+# 카드 선택
 def toggle_card(idx):
     if idx in st.session_state.selected:
         st.session_state.selected.remove(idx)
@@ -113,16 +109,19 @@ if len(st.session_state.selected) == 3:
         st.session_state.set_success.append(
             (len(st.session_state.set_success)+1, str(timedelta(seconds=elapsed)), note)
         )
-        
-        selected_indices = st.session_state.selected.copy()
-        if len(st.session_state.remaining) >= 3:
+
+        selected_indices = sorted(st.session_state.selected)
+        card_count_before = len(st.session_state.cards)
+
+        if card_count_before == 12 and len(st.session_state.remaining) >= 3:
+            # 12장 → SET 성공 → 3장 제거 + 새 3장 추가 → 12장 유지
             new_cards = random.sample(st.session_state.remaining, 3)
-            for i, card_idx in enumerate(sorted(selected_indices)):
+            for i, card_idx in enumerate(selected_indices):
                 st.session_state.cards[card_idx] = new_cards[i]
                 st.session_state.remaining.remove(new_cards[i])
         else:
-            # 새 카드 부족하면 해당 카드만 제거
-            for card_idx in sorted(selected_indices, reverse=True):
+            # 15장 → SET 성공 → 3장 제거만 → 12장 유지
+            for card_idx in reversed(selected_indices):
                 st.session_state.cards.pop(card_idx)
 
         st.session_state.selected.clear()
@@ -137,7 +136,7 @@ if len(st.session_state.selected) == 3:
         st.session_state.hint_mode = False
         st.rerun()
 
-# SET 없음 시 카드 추가
+# SET이 없으면 3장 추가 (단, 12장일 때만)
 if not any_set_exists(st.session_state.cards):
     if len(st.session_state.cards) == 12 and len(st.session_state.remaining) >= 3:
         st.warning("⚠️ SET이 없어 3장을 추가합니다!")
@@ -147,7 +146,7 @@ if not any_set_exists(st.session_state.cards):
             st.session_state.remaining.remove(c)
         st.rerun()
 
-# 게임 종료 버튼
+# 게임 종료
 if st.button("🛑 게임 종료"):
     duration = int(time.time() - st.session_state.start_time)
     save_stats_summary(
@@ -156,8 +155,6 @@ if st.button("🛑 게임 종료"):
         duration
     )
     st.success("✅ 게임이 종료되었고 결과가 game_records.csv에 저장되었습니다.")
-    
-    # 상태 초기화
     st.session_state.game_started = False
     st.session_state.cards = []
     st.session_state.remaining = ALL_CARDS.copy()
